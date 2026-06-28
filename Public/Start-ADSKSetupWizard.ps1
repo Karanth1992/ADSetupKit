@@ -17,7 +17,7 @@
     Website: https://karanth.ovh
     Requires: Run as Administrator on a fresh Windows Server.
 #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param()
 
     if (-not (Test-ADSKAdministrator)) { throw "Run as Administrator." }
