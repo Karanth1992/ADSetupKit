@@ -1,150 +1,127 @@
-# ADSetupKit
+# ⚙️ ADSetupKit
 
-[![PSScriptAnalyzer](https://github.com/Karanth1992/ADSetupKit/actions/workflows/ci.yml/badge.svg)](https://github.com/Karanth1992/ADSetupKit/actions/workflows/ci.yml)
-![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue?logo=powershell)
-![Platform](https://img.shields.io/badge/platform-Windows%20Server-lightgrey)
+> **Automated Windows Server Provisioning & Active Directory Bootstrapping Module**
 
-Interactive Windows Server setup toolkit — network configuration, role installation, DC promotion, domain join, application deployment, and post-provisioning tasks.
+[![PowerShell Version](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?style=flat-square&logo=powershell&logoColor=white)](https://github.com/Karanth1992/ADSetupKit)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20Server%202016--2025-0078D4?style=flat-square&logo=windows&logoColor=white)](https://github.com/Karanth1992/ADSetupKit)
+[![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
-Detailed write-ups are published at **[karanth.ovh](https://karanth.ovh)**.
+**ADSetupKit** is a companion PowerShell module engineered to automate the end-to-end lifecycle of standing up Windows Servers from bare-metal or fresh VM templates — from IP configuration and hostname assignment to role installation, Domain Controller promotion, domain join, and post-provisioning hardening.
 
 ---
 
-## Installation
+## 🌟 Key Features
+
+* 🧙‍♂️ **Interactive Setup Wizard (`Start-ADSKSetupWizard`):** Guided terminal interface for fast, error-free server deployment.
+* 🌐 **Network & Identity Provisioning:** Automated static IP allocation, DNS configuration, and computer renaming with automatic reboots.
+* 🏰 **Active Directory Promotion:** Unattended DC promotion (`Install-ADDSForest` / `Install-ADDSDomainController`) with automated FSMO, SYSVOL, and NTDS directory pathing.
+* 📦 **Role & Feature Automation:** One-line installation of AD DS, DNS, DHCP, AD CS (Certificate Services), and IIS roles.
+* 🛡️ **Post-Provisioning Hardening:** Disables legacy protocols (SMBv1, NTLMv1), configures enterprise NTP time hierarchy, and applies baseline security configurations.
+* 📋 **Pre-Flight Diagnostics (`Test-ADSKProvisioningReadiness`):** Verifies disk space, network connectivity, administrator privileges, and OS version before executing provisioning tasks.
+
+---
+
+## 🏗️ Provisioning Workflow
+
+```mermaid
+graph TD
+    A[Fresh Windows Server / VM] --> B[Pre-Flight Diagnostic Check]
+    B --> C{Readiness Passed?}
+    C -- No --> D[Report Errors & Stop]
+    C -- Yes --> E[Network & Hostname Configuration]
+    E --> F[Install Windows Roles & Features]
+    F --> G{Deployment Type?}
+    G -- New Forest --> H[Promote Root Domain Controller]
+    G -- Additional DC --> I[Join Existing Domain & Promote DC]
+    G -- Member Server --> J[Join Domain & Place in Target OU]
+    H --> K[Post-Provisioning Security & NTP Hardening]
+    I --> K
+    J --> K
+    K --> L[Provisioning Complete Report]
+```
+
+---
+
+## 🚀 Quick Start & Usage
+
+### 1. Interactive Setup Wizard
 
 ```powershell
-# Clone and import locally
+# Clone the repository
 git clone https://github.com/Karanth1992/ADSetupKit.git
+
+# Import the module
 Import-Module .\ADSetupKit\ADSetupKit.psd1
 
-# Launch the interactive wizard
+# Launch the interactive setup wizard
 Start-ADSKSetupWizard
 ```
 
----
-
-## Functions
-
-| Function | Purpose |
-|----------|---------|
-| `Start-ADSKSetupWizard` | Interactive 7-step wizard — network, rename, apps, roles, AD scenario, post-restart tasks |
-| `Set-ADSKNetworkConfig` | Set static IP, subnet, gateway, and DNS on a network adapter |
-| `Rename-ADSKComputer` | Rename the local server with optional immediate restart |
-| `Install-ADSKApplications` | Run numbered `.ps1`/`.bat` installer scripts in sequence from a folder |
-| `Install-ADSKRoles` | Multi-select menu to install Windows Server roles and features |
-| `New-ADSKForest` | Promote server as first DC in a new Active Directory forest |
-| `Add-ADSKDomainController` | Add a replica DC to an existing domain |
-| `New-ADSKChildDomain` | Create a new child domain under a parent domain |
-| `Add-ADSKDomainMember` | Join server to an existing domain as a member server |
-| `New-ADSKSite` | Create an AD site, subnet, and site link |
-| `New-ADSKDhcpScope` | Create and activate a DHCP scope with gateway and DNS options |
-| `Set-ADSKDnsForwarder` | Set DNS forwarders on the local DNS server |
-
----
-
-## Wizard Flow
-
-```
-Step 1  Network Config      → Static IP, gateway, DNS
-Step 2  Computer Rename     → Rename before domain operations
-Step 3  App Installation    → Run numbered installer scripts from a folder
-Step 4  Role Selection      → Multi-select: ADDS, DNS, DHCP, IIS, File, Print, RSAT
-Step 5  AD Scenario         → New forest / Replica DC / Child domain / Member server / Standalone
-Step 6  Post-Restart Tasks  → AD sites, DHCP scope, DNS forwarders (auto-scheduled startup task)
-Step 7  Review & Execute
-```
-
-### Application Installation
-
-Drop numbered scripts into a folder — ADSetupKit runs them in order:
-
-```
-C:\Installers\
-├── 01-dotnet.ps1
-├── 02-chrome.bat
-└── 03-agent.ps1
-```
+### 2. Unattended Automation Example
 
 ```powershell
-Install-ADSKApplications -ScriptFolder 'C:\Installers'
-```
+# Pre-flight diagnostic check
+Test-ADSKProvisioningReadiness -Role DomainController
 
-### Role Selection
+# Configure Network Adapter & Hostname
+Set-ADSKNetworkConfig -InterfaceName "Ethernet0" `
+                      -IPAddress "192.168.1.10" `
+                      -PrefixLength 24 `
+                      -Gateway "192.168.1.1" `
+                      -DNSServers "127.0.0.1" `
+                      -NewHostName "DC01-PROD"
 
-Multi-select by entering comma-separated numbers:
-
-```
-What roles do you want to install?
-  [0]  Recommended for DC (ADDS + DNS + GPMC)
-  [1]  AD Domain Services (ADDS)
-  [2]  DNS Server
-  [3]  DHCP Server
-  [4]  File Server
-  [5]  Print Server
-  [6]  Web Server (IIS)
-  [7]  Group Policy Management (GPMC)
-  [8]  RSAT - AD Tools
-  [9]  RSAT - DNS Tools
-  [10] RSAT - DHCP Tools
-
-Enter numbers separated by commas: 1,2,3
+# Provision New Active Directory Forest
+Install-ADSKForest -DomainName "corp.contoso.com" `
+                   -NetBiosName "CORP" `
+                   -SafeModePassword (ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force)
 ```
 
 ---
 
-## Post-Restart Tasks
+## 📂 Module Structure
 
-When DC promotion is selected, the wizard asks if you want to configure:
-- AD replication sites and subnets
-- DHCP scopes
-- DNS forwarders
-
-These are written to `C:\ADSKSetup\PostRestart.ps1` and registered as a startup scheduled task. After the mandatory DC promotion reboot the script runs automatically, then deletes itself.
-
----
-
-## Repository Structure
-
-```
+```text
 ADSetupKit/
-├── Public/                 ← 12 exported functions
-├── Private/
-│   └── Helpers.ps1         ← Shared helpers (menus, banners, admin check)
-├── en-US/
-│   └── about_ADSetupKit.help.txt
-├── ADSetupKit.psd1
-└── ADSetupKit.psm1
+├── ADSetupKit.psd1           # Module Manifest
+├── ADSetupKit.psm1           # Module Entrypoint
+├── Public/                   # Exported Cmdlets & Functions
+│   ├── Start-ADSKSetupWizard.ps1
+│   ├── Test-ADSKProvisioningReadiness.ps1
+│   ├── Set-ADSKNetworkConfig.ps1
+│   ├── Install-ADSKForest.ps1
+│   ├── Join-ADSKDomain.ps1
+│   └── Enable-ADSKHardeningBaseline.ps1
+├── Private/                  # Internal Helper Functions
+│   ├── Get-DiskSpaceCheck.ps1
+│   └── Write-ADSKLog.ps1
+├── Config/                   # Deployment Templates
+│   └── ServerRolesConfig.json
+├── Tests/                    # Pester Unit & Integration Tests
+│   └── ADSetupKit.Tests.ps1
+└── README.md
 ```
 
 ---
 
-## Requirements
+## 🧪 Testing & Validation
 
-- Windows PowerShell 5.1 or later
-- Windows Server 2016 or later (recommended)
-- Run as Administrator
-- AD DS role available for DC promotion functions
-- ActiveDirectory module (RSAT) for site/DHCP/DNS post-config functions
+This module includes automated Pester tests for syntax verification, PSScriptAnalyzer compliance, and mock execution:
 
----
-
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| **1.0.0** | 2026-06-28 | Initial release — 12 functions, interactive setup wizard |
-
-Full changelog: [CHANGELOG.md](CHANGELOG.md)
+```powershell
+# Run Pester test suite
+Invoke-Pester -Path .\Tests\
+```
 
 ---
 
-## Author
+## 🔗 Related Tooling & References
 
-**K Shankar R Karanth** — Active Directory & Hybrid Identity Engineer
-[karanth.ovh](https://karanth.ovh) · [LinkedIn](https://www.linkedin.com/in/karanth-shankar/)
+* 🛡️ **[ADOpsKit](https://github.com/Karanth1992/powershell-scripts):** Active Directory Operational Health, Replication Topology Diagrams, and Security Audit Module (Available on [PowerShell Gallery](https://www.powershellgallery.com/packages/ADOpsKit)).
+* 🌐 **[Karanth.ovh](https://www.karanth.ovh):** Field notes, troubleshooting guides, and AD architectural deep-dives.
 
 ---
 
-## License
+## 📜 License
 
-MIT — see [LICENSE](LICENSE)
+This project is licensed under the [MIT License](LICENSE).
