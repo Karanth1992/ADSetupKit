@@ -38,3 +38,50 @@ graph TD
     I --> K
     J --> K
     K --> L[Provisioning Complete Report]
+
+Option 1: Direct Clone & Import
+
+# Clone the repository
+git clone https://github.com/Karanth1992/ADSetupKit.git
+
+# Navigate and import the module
+Import-Module .\ADSetupKit\ADSetupKit.psd1
+
+# Launch the interactive wizard
+Start-ADSKSetupWizard
+
+Option 2: Automated Unattended Scripting# 1. Run Pre-flight readiness check
+
+Test-ADSKProvisioningReadiness -Role DomainController
+
+# 2. Configure Network Adapter & Hostname
+Set-ADSKNetworkConfig -InterfaceName "Ethernet0" -IPAddress "192.168.1.10" -PrefixLength 24 -Gateway "192.168.1.1" -DNSServers "127.0.0.1" -NewHostName "DC01-PROD"
+
+# 3. Provision New Active Directory Forest
+Install-ADSKForest -DomainName "corp.contoso.com" -NetBiosName "CORP" -SafeModePassword (ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force)
+
+📂 Module Structure
+
+ADSetupKit/
+├── ADSetupKit.psd1           # Module Manifest
+├── ADSetupKit.psm1           # Module Root Entrypoint
+├── Public/                   # Exported Cmdlets & Functions
+│   ├── Start-ADSKSetupWizard.ps1
+│   ├── Test-ADSKProvisioningReadiness.ps1
+│   ├── Set-ADSKNetworkConfig.ps1
+│   ├── Install-ADSKForest.ps1
+│   ├── Join-ADSKDomain.ps1
+│   └── Enable-ADSKHardeningBaseline.ps1
+├── Private/                  # Internal Helper Functions
+│   ├── Get-DiskSpaceCheck.ps1
+│   └── Write-ADSKLog.ps1
+├── Config/                   # XML / JSON Deployment Templates
+│   └── ServerRolesConfig.json
+├── Tests/                    # Pester Unit & Integration Tests
+│   └── ADSetupKit.Tests.ps1
+└── README.md
+
+🧪 Testing & Validation
+
+# Run Pester test suite
+Invoke-Pester -Path .\Tests\
