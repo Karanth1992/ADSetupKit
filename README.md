@@ -6,38 +6,60 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20Server%202016--2025-0078D4?style=flat-square&logo=windows&logoColor=white)](https://github.com/Karanth1992/ADSetupKit)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
-**ADSetupKit** is a companion PowerShell module engineered to automate the end-to-end lifecycle of standing up Windows Servers from bare-metal or fresh VM templates — from IP configuration and hostname assignment to role installation, Domain Controller promotion, domain join, and post-provisioning hardening.
+**ADSetupKit** is an enterprise PowerShell module engineered to automate the end-to-end lifecycle of standing up Windows Servers from bare-metal or fresh VM templates — from static network configuration and computer renaming to role installation, Domain Controller promotion, domain join, and automated post-restart infrastructure setup.
+
+Detailed workflow diagrams and phase transitions are documented in **[WORKFLOW.md](WORKFLOW.md)**.
+
+Looking for post-promotion operations and health auditing? See **[ADOpsKit](https://github.com/Karanth1992/ADOpsKit)** (published to the PowerShell Gallery) — ADSetupKit provisions the server, and ADOpsKit monitors and audits it.
 
 ---
 
 ## 🌟 Key Features
 
-* 🧙‍♂️ **Interactive Setup Wizard (`Start-ADSKSetupWizard`):** Guided terminal interface for fast, error-free server deployment.
-* 🌐 **Network & Identity Provisioning:** Automated static IP allocation, DNS configuration, and computer renaming with automatic reboots.
-* 🏰 **Active Directory Promotion:** Unattended DC promotion (`Install-ADDSForest` / `Install-ADDSDomainController`) with automated FSMO, SYSVOL, and NTDS directory pathing.
-* 📦 **Role & Feature Automation:** One-line installation of AD DS, DNS, DHCP, AD CS (Certificate Services), and IIS roles.
-* 🛡️ **Post-Provisioning Hardening:** Disables legacy protocols (SMBv1, NTLMv1), configures enterprise NTP time hierarchy, and applies baseline security configurations.
-* 📋 **Pre-Flight Diagnostics (`Test-ADSKProvisioningReadiness`):** Verifies disk space, network connectivity, administrator privileges, and OS version before executing provisioning tasks.
+* 🧙‍♂️ **Interactive Setup Wizard (`Start-ADSKSetupWizard`):** 7-step guided menu for configuring networking, host renaming, application bootstrapping, role installations, AD promotion scenarios, and post-restart automation.
+* 🌐 **Network & Hostname Configuration (`Set-ADSKNetworkConfig`, `Rename-ADSKComputer`):** Configures static IPv4 addressing, gateway, and DNS servers; manages computer renaming prior to domain join.
+* 📦 **Role & Application Deployment (`Install-ADSKRoles`, `Install-ADSKApplications`):** Scripted or interactive installation of core Windows roles (`AD-Domain-Services`, `DNS`, `DHCP`, `Web-Server`, `RSAT`, `GPMC`) and ordered execution of software installer scripts.
+* 🏰 **Active Directory Promotion Suite:**
+  * `New-ADSKForest` — Promotes the first Domain Controller in a new forest.
+  * `Add-ADSKDomainController` — Joins an existing domain as a replica DC.
+  * `New-ADSKChildDomain` — Provisions a child domain within an existing forest tree.
+  * `Add-ADSKDomainMember` — Joins a member server to a target domain without DC promotion.
+* 🔁 **Automated Post-Restart Tasks (`New-ADSKSite`, `New-ADSKDhcpScope`, `Set-ADSKDnsForwarder`):** Configures AD sites/subnets, authorizes DHCP scopes, and configures DNS forwarders via an automatic scheduled task registered to execute upon the post-promotion reboot.
 
 ---
 
 ## 🏗️ Provisioning Workflow
 
 ```mermaid
-graph TD
-    A[Fresh Windows Server / VM] --> B[Pre-Flight Diagnostic Check]
-    B --> C{Readiness Passed?}
-    C -- No --> D[Report Errors & Stop]
-    C -- Yes --> E[Network & Hostname Configuration]
-    E --> F[Install Windows Roles & Features]
-    F --> G{Deployment Type?}
-    G -- New Forest --> H[Promote Root Domain Controller]
-    G -- Additional DC --> I[Join Existing Domain & Promote DC]
-    G -- Member Server --> J[Join Domain & Place in Target OU]
-    H --> K[Post-Provisioning Security & NTP Hardening]
-    I --> K
-    J --> K
-    K --> L[Provisioning Complete Report]
+flowchart LR
+    subgraph PREP["1 · Prepare"]
+        NET["Set-ADSKNetworkConfig\nStatic IP · DNS · Gateway"]
+        RN["Rename-ADSKComputer\nHostname before join"]
+        APP["Install-ADSKApplications\nNumbered bootstrap scripts"]
+        ROLE["Install-ADSKRoles\nADDS · DNS · DHCP · IIS …"]
+        NET --> RN --> APP --> ROLE
+    end
+
+    subgraph PROMOTE["2 · Promote"]
+        FOREST["New-ADSKForest"]
+        REPLICA["Add-ADSKDomainController"]
+        CHILD["New-ADSKChildDomain"]
+        MEMBER["Add-ADSKDomainMember"]
+        ROLE --> FOREST & REPLICA & CHILD & MEMBER
+    end
+
+    subgraph POSTBOOT["3 · Post-Restart"]
+        SITE["New-ADSKSite"]
+        DHCP["New-ADSKDhcpScope"]
+        FWD["Set-ADSKDnsForwarder"]
+        FOREST & REPLICA & CHILD --> SITE & DHCP & FWD
+    end
+
+    subgraph HANDOFF["4 · Handoff"]
+        READY(["Server Ready\nHand off to ADOpsKit"])
+        MEMBER --> READY
+        SITE & DHCP & FWD --> READY
+    end
 ```
 
 ---
@@ -46,36 +68,64 @@ graph TD
 
 ### 1. Interactive Setup Wizard
 
+The interactive wizard orchestrates the full sequence, prompting for configuration details and registering any required post-restart tasks:
+
 ```powershell
 # Clone the repository
 git clone https://github.com/Karanth1992/ADSetupKit.git
 
 # Import the module
-Import-Module .\ADSetupKit\ADSetupKit.psd1
+Import-Module .\ADSetupKit\ADSetupKit.psd1 -Force
 
 # Launch the interactive setup wizard
 Start-ADSKSetupWizard
 ```
 
-### 2. Unattended Automation Example
+### 2. Scripted Unattended Provisioning
+
+Every step can also be run independently in automated scripts:
 
 ```powershell
-# Pre-flight diagnostic check
-Test-ADSKProvisioningReadiness -Role DomainController
+Import-Module .\ADSetupKit\ADSetupKit.psd1 -Force
 
-# Configure Network Adapter & Hostname
-Set-ADSKNetworkConfig -InterfaceName "Ethernet0" `
-                      -IPAddress "192.168.1.10" `
+# 1. Configure static IP and DNS
+Set-ADSKNetworkConfig -AdapterName 'Ethernet0' `
+                      -IPAddress '192.168.1.10' `
                       -PrefixLength 24 `
-                      -Gateway "192.168.1.1" `
-                      -DNSServers "127.0.0.1" `
-                      -NewHostName "DC01-PROD"
+                      -DefaultGateway '192.168.1.1' `
+                      -DnsServers @('127.0.0.1', '192.168.1.1')
 
-# Provision New Active Directory Forest
-Install-ADSKForest -DomainName "corp.contoso.com" `
-                   -NetBiosName "CORP" `
-                   -SafeModePassword (ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force)
+# 2. Rename computer before promotion
+Rename-ADSKComputer -NewName 'DC01-CORP'
+
+# 3. Install required roles
+Install-ADSKRoles -Roles @('AD-Domain-Services', 'DNS', 'RSAT-AD-Tools')
+
+# 4. Promote Root Domain Controller (triggers required reboot)
+$dsrmPassword = ConvertTo-SecureString 'P@ssw0rd123!Secure' -AsPlainText -Force
+New-ADSKForest -DomainName 'corp.contoso.com' `
+               -DomainNetBiosName 'CORP' `
+               -SafeModePassword $dsrmPassword
 ```
+
+---
+
+## 📋 Exported Functions
+
+| Function | Stage | Purpose |
+|----------|-------|---------|
+| `Start-ADSKSetupWizard` | Orchestrator | Interactive 7-step wizard tying all stages together |
+| `Set-ADSKNetworkConfig` | Prepare | Configures static IP, subnet prefix, default gateway, and DNS servers |
+| `Rename-ADSKComputer` | Prepare | Renames the local computer prior to domain operations |
+| `Install-ADSKApplications`| Prepare | Executes numbered bootstrap installer scripts in order |
+| `Install-ADSKRoles` | Prepare | Installs Windows Server roles and RSAT features |
+| `New-ADSKForest` | Promote | Creates the root Domain Controller for a new forest |
+| `Add-ADSKDomainController`| Promote | Promotes the server as an additional replica DC in an existing domain |
+| `New-ADSKChildDomain` | Promote | Creates a new child domain under a parent forest |
+| `Add-ADSKDomainMember` | Promote | Joins server to an Active Directory domain as a member server |
+| `New-ADSKSite` | Post-Restart | Provisions Active Directory sites and subnet associations |
+| `New-ADSKDhcpScope` | Post-Restart | Creates and authorizes a DHCP scope on the new server |
+| `Set-ADSKDnsForwarder` | Post-Restart | Configures DNS upstream forwarders |
 
 ---
 
@@ -83,34 +133,44 @@ Install-ADSKForest -DomainName "corp.contoso.com" `
 
 ```text
 ADSetupKit/
-├── ADSetupKit.psd1           # Module Manifest
-├── ADSetupKit.psm1           # Module Entrypoint
-├── Public/                   # Exported Cmdlets & Functions
-│   ├── Start-ADSKSetupWizard.ps1
-│   ├── Test-ADSKProvisioningReadiness.ps1
-│   ├── Set-ADSKNetworkConfig.ps1
-│   ├── Install-ADSKForest.ps1
-│   ├── Join-ADSKDomain.ps1
-│   └── Enable-ADSKHardeningBaseline.ps1
-├── Private/                  # Internal Helper Functions
-│   ├── Get-DiskSpaceCheck.ps1
-│   └── Write-ADSKLog.ps1
-├── Config/                   # Deployment Templates
-│   └── ServerRolesConfig.json
-├── Tests/                    # Pester Unit & Integration Tests
-│   └── ADSetupKit.Tests.ps1
-└── README.md
+├── .github/
+│   └── workflows/
+│       └── ci.yml               # PSScriptAnalyzer automated CI workflow
+├── .pssa.psd1                   # PSScriptAnalyzer rule configuration
+├── ADSetupKit.psd1              # Module Manifest
+├── ADSetupKit.psm1              # Module Loader
+├── CHANGELOG.md                 # Version and release history
+├── LICENSE                      # MIT License
+├── README.md                    # Module documentation
+├── WORKFLOW.md                  # Architectural diagrams and stage workflows
+├── en-US/
+│   └── about_ADSetupKit.help.txt # Updatable help topic
+├── Private/
+│   └── Helpers.ps1              # Internal UI banners, prompts, and task helpers
+└── Public/
+    ├── Start-ADSKSetupWizard.ps1
+    ├── Set-ADSKNetworkConfig.ps1
+    ├── Rename-ADSKComputer.ps1
+    ├── Install-ADSKApplications.ps1
+    ├── Install-ADSKRoles.ps1
+    ├── New-ADSKForest.ps1
+    ├── Add-ADSKDomainController.ps1
+    ├── New-ADSKChildDomain.ps1
+    ├── Add-ADSKDomainMember.ps1
+    ├── New-ADSKSite.ps1
+    ├── New-ADSKDhcpScope.ps1
+    └── Set-ADSKDnsForwarder.ps1
 ```
 
 ---
 
-## 🧪 Testing & Validation
+## 🧪 Testing & Code Quality
 
-This module includes automated Pester tests for syntax verification, PSScriptAnalyzer compliance, and mock execution:
+Code quality is enforced via **PSScriptAnalyzer** and automated through GitHub Actions:
 
 ```powershell
-# Run Pester test suite
-Invoke-Pester -Path .\Tests\
+# Run PSScriptAnalyzer linting locally
+Invoke-ScriptAnalyzer -Path . -Recurse -Severity Warning,Error -Settings .pssa.psd1
 ```
 
 ---
@@ -118,7 +178,8 @@ Invoke-Pester -Path .\Tests\
 ## 🔗 Related Tooling & References
 
 * 🛡️ **[ADOpsKit](https://github.com/Karanth1992/ADOpsKit):** Active Directory Operational Health, Replication Topology Diagrams, and Security Audit Module (Available on [PowerShell Gallery](https://www.powershellgallery.com/packages/ADOpsKit)).
-* 🌐 **[Karanth.ovh](https://www.karanth.ovh):** Field notes, troubleshooting guides, and AD architectural deep-dives.
+* 🏗️ **[ADLabProvisioner](https://github.com/Karanth1992/ADLabProvisioner):** Declarative Infrastructure-as-Code (IaC) Active Directory lab provisioning and compliance auditing.
+* 🌐 **[karanth.ovh](https://www.karanth.ovh):** Field notes, troubleshooting guides, and AD architectural deep-dives.
 
 ---
 
