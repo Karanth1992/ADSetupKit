@@ -117,7 +117,7 @@ Invoke-Pester -Path .\Tests\
 
 ## 🔗 Related Tooling & References
 
-* 🛡️ **[ADOpsKit](https://github.com/Karanth1992/powershell-scripts):** Active Directory Operational Health, Replication Topology Diagrams, and Security Audit Module (Available on [PowerShell Gallery](https://www.powershellgallery.com/packages/ADOpsKit)).
+* 🛡️ **[ADOpsKit](https://github.com/Karanth1992/ADOpsKit):** Active Directory Operational Health, Replication Topology Diagrams, and Security Audit Module (Available on [PowerShell Gallery](https://www.powershellgallery.com/packages/ADOpsKit)).
 * 🌐 **[Karanth.ovh](https://www.karanth.ovh):** Field notes, troubleshooting guides, and AD architectural deep-dives.
 
 ---

@@ -110,10 +110,10 @@ PrivateData = @{
         Tags = @('ActiveDirectory','WindowsServer','DCPromotion','ServerSetup','DNS','DHCP','IIS','DomainController','Infrastructure','Automation')
 
         # A URL to the license for this module.
-        LicenseUri = 'https://github.com/Karanth1992/powershell-scripts/blob/main/LICENSE'
+        LicenseUri = 'https://github.com/Karanth1992/ADSetupKit/blob/main/LICENSE'
 
         # A URL to the main website for this project.
-        ProjectUri = 'https://github.com/Karanth1992/powershell-scripts'
+        ProjectUri = 'https://github.com/Karanth1992/ADSetupKit'
 
         # A URL to an icon representing this module.
         # IconUri = ''
